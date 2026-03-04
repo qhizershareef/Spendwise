@@ -8,8 +8,9 @@ interface SyncState {
     lastSyncTime: string | null;
     lastError: string | null;
 
-    signIn: (clientId?: string) => Promise<boolean>;
-    signOut: () => void;
+    checkSignInStatus: () => Promise<void>;
+    signIn: () => Promise<boolean>;
+    signOut: () => Promise<void>;
     syncNow: () => Promise<boolean>;
     restoreFromDrive: () => Promise<boolean>;
 }
@@ -21,8 +22,14 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     lastSyncTime: null,
     lastError: null,
 
-    signIn: async (clientId?: string) => {
-        const result = await GoogleDrive.signIn(clientId);
+    checkSignInStatus: async () => {
+        const signedIn = await GoogleDrive.isSignedIn();
+        const email = GoogleDrive.getUserEmail();
+        set({ isSignedIn: signedIn, userEmail: email });
+    },
+
+    signIn: async () => {
+        const result = await GoogleDrive.signIn();
         if (result.success) {
             set({ isSignedIn: true, userEmail: result.email || null, lastError: null });
             return true;
@@ -31,8 +38,8 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         return false;
     },
 
-    signOut: () => {
-        GoogleDrive.signOut();
+    signOut: async () => {
+        await GoogleDrive.signOut();
         set({ isSignedIn: false, userEmail: null, lastSyncTime: null, lastError: null });
     },
 

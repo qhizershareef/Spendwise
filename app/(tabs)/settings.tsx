@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Alert, Platform, Pressable } from 'react-native';
 import {
     Text,
@@ -21,6 +21,7 @@ import { usePreferencesStore } from '@/stores/preferencesStore';
 import { useBudgetStore } from '@/stores/budgetStore';
 import { testConnection } from '@/services/ai';
 import { exportAsCSV, exportAsJSON } from '@/services/export';
+import { configureGoogleSignIn } from '@/services/googleDrive';
 import { useSyncStore } from '@/stores/syncStore';
 import { spacing, borderRadius, customColors } from '@/constants/theme';
 import { DEFAULT_CATEGORIES, getExpenseCategories } from '@/constants/categories';
@@ -30,7 +31,13 @@ export default function SettingsScreen() {
     const theme = useTheme();
     const { preferences, updatePreference, addCustomCategory, removeCustomCategory, toggleCategory, toggleDisableCategory, getAllCategories } = usePreferencesStore();
     const { budgets, addBudget, deleteBudget } = useBudgetStore();
-    const { isSignedIn, userEmail, isSyncing, lastSyncTime, lastError, signIn, signOut, syncNow, restoreFromDrive } = useSyncStore();
+    const { isSignedIn, userEmail, isSyncing, lastSyncTime, lastError, checkSignInStatus, signIn, signOut, syncNow, restoreFromDrive } = useSyncStore();
+
+    // Configure Google Sign-In and check status on mount
+    useEffect(() => {
+        configureGoogleSignIn('555178069411-gs2c83fgsu3d1s4cnehe5u6983deeffr.apps.googleusercontent.com');
+        checkSignInStatus();
+    }, []);
 
     // Budget dialog
     const [budgetDialog, setBudgetDialog] = useState(false);
