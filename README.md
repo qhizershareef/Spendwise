@@ -1,4 +1,4 @@
-<![CDATA[# 💰 SpendWise — Smart Expense Tracker
+# 💰 SpendWise — Smart Expense Tracker
 
 A premium, AI-powered personal finance tracker built with **React Native** and **Expo**. Track every rupee, get intelligent insights, visualize your spending, and sync to Google Drive — all from your phone.
 
@@ -289,4 +289,4 @@ This project is open source and available under the [MIT License](LICENSE).
 <p align="center">
   Built with ❤️ using React Native & Expo
 </p>
-]]>
+
