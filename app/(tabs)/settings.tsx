@@ -25,6 +25,8 @@ import { configureGoogleSignIn } from '@/services/googleDrive';
 import { useSyncStore } from '@/stores/syncStore';
 import { spacing, borderRadius, customColors } from '@/constants/theme';
 import { DEFAULT_CATEGORIES, getExpenseCategories } from '@/constants/categories';
+import * as Notifications from 'expo-notifications';
+import * as LocalAuthentication from 'expo-local-authentication';
 import type { CategoryId, Category } from '@/types';
 
 export default function SettingsScreen() {
@@ -190,7 +192,17 @@ export default function SettingsScreen() {
                             right={() => (
                                 <Switch
                                     value={preferences.notificationsEnabled}
-                                    onValueChange={(val) => updatePreference('notificationsEnabled', val)}
+                                    onValueChange={async (val) => {
+                                        if (val) {
+                                            const { status } = await Notifications.requestPermissionsAsync();
+                                            if (status !== 'granted') {
+                                                setSnackMsg('Notification permission denied');
+                                                setSnackVisible(true);
+                                                return;
+                                            }
+                                        }
+                                        updatePreference('notificationsEnabled', val);
+                                    }}
                                     color={theme.colors.primary}
                                 />
                             )}
@@ -224,7 +236,34 @@ export default function SettingsScreen() {
                             right={() => (
                                 <Switch
                                     value={preferences.biometricLock}
-                                    onValueChange={(val) => updatePreference('biometricLock', val)}
+                                    onValueChange={async (val) => {
+                                        if (val) {
+                                            const compatible = await LocalAuthentication.hasHardwareAsync();
+                                            if (!compatible) {
+                                                setSnackMsg('Biometric hardware not available on this device');
+                                                setSnackVisible(true);
+                                                return;
+                                            }
+                                            const enrolled = await LocalAuthentication.isEnrolledAsync();
+                                            if (!enrolled) {
+                                                setSnackMsg('No biometrics enrolled — set up fingerprint/face in system settings');
+                                                setSnackVisible(true);
+                                                return;
+                                            }
+                                            const result = await LocalAuthentication.authenticateAsync({
+                                                promptMessage: 'Authenticate to enable biometric lock',
+                                                fallbackLabel: 'Use passcode',
+                                            });
+                                            if (!result.success) {
+                                                setSnackMsg('Authentication failed');
+                                                setSnackVisible(true);
+                                                return;
+                                            }
+                                        }
+                                        updatePreference('biometricLock', val);
+                                        setSnackMsg(val ? 'Biometric lock enabled ✓' : 'Biometric lock disabled');
+                                        setSnackVisible(true);
+                                    }}
                                     color={theme.colors.primary}
                                 />
                             )}
