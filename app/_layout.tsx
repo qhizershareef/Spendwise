@@ -102,8 +102,8 @@ export default function RootLayout() {
 
   const theme = isDark ? darkTheme : lightTheme;
 
-  // Biometric lock screen
-  if (preferences.biometricLock && !isUnlocked && authChecked) {
+  // Biometric lock screen — show immediately to hide content behind auth dialog
+  if (preferences.biometricLock && !isUnlocked) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
