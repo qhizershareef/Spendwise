@@ -17,6 +17,10 @@
     },
     "android": {
       "package": "com.spendwise.app",
+      "permissions": [
+        "android.permission.RECEIVE_SMS",
+        "android.permission.READ_SMS"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -32,7 +36,6 @@
     },
     "plugins": [
       "expo-router",
-      "expo-barcode-scanner",
       "expo-sharing",
       "@react-native-google-signin/google-signin"
     ],

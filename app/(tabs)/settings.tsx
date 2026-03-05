@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Alert, Platform, Pressable } from 'react-native';
+import { View, ScrollView, StyleSheet, Alert, Platform, Pressable, PermissionsAndroid } from 'react-native';
 import {
     Text,
     List,
@@ -155,7 +155,29 @@ export default function SettingsScreen() {
                             right={() => (
                                 <Switch
                                     value={preferences.smsAutoDetect}
-                                    onValueChange={(val) => updatePreference('smsAutoDetect', val)}
+                                    onValueChange={async (val) => {
+                                        if (val && Platform.OS === 'android') {
+                                            try {
+                                                const granted = await PermissionsAndroid.requestMultiple([
+                                                    PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+                                                    PermissionsAndroid.PERMISSIONS.READ_SMS,
+                                                ]);
+                                                const allGranted =
+                                                    granted['android.permission.RECEIVE_SMS'] === PermissionsAndroid.RESULTS.GRANTED &&
+                                                    granted['android.permission.READ_SMS'] === PermissionsAndroid.RESULTS.GRANTED;
+                                                if (!allGranted) {
+                                                    setSnackMsg('SMS permission required for auto-detect');
+                                                    setSnackVisible(true);
+                                                    return;
+                                                }
+                                            } catch (err) {
+                                                setSnackMsg('Permission request failed');
+                                                setSnackVisible(true);
+                                                return;
+                                            }
+                                        }
+                                        updatePreference('smsAutoDetect', val);
+                                    }}
                                     color={theme.colors.primary}
                                 />
                             )}
