@@ -2,7 +2,7 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
-import { useColorScheme, View, StyleSheet } from 'react-native';
+import { useColorScheme, View, StyleSheet, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PaperProvider, Text, Button, useTheme } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -15,6 +15,9 @@ import { lightTheme, darkTheme } from '@/constants/theme';
 import { usePreferencesStore } from '@/stores/preferencesStore';
 import { useTransactionStore } from '@/stores/transactionStore';
 import { useBudgetStore } from '@/stores/budgetStore';
+import { startSMSListener, isListenerActive } from '@/services/sms';
+import type { ParsedSMS } from '@/services/sms';
+import type { CategoryId } from '@/types';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -30,6 +33,7 @@ export default function RootLayout() {
   const loadMonth = useTransactionStore((s) => s.loadMonth);
   const loadBudgets = useBudgetStore((s) => s.loadBudgets);
   const loadGoals = useBudgetStore((s) => s.loadGoals);
+  const addTransaction = useTransactionStore((s) => s.addTransaction);
 
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
@@ -49,6 +53,34 @@ export default function RootLayout() {
     loadBudgets();
     loadGoals();
   }, []);
+
+  // Start SMS listener when enabled
+  useEffect(() => {
+    if (!isLoaded || !preferences.smsAutoDetect || isListenerActive()) return;
+    if (Platform.OS !== 'android') return;
+
+    const enabledCategories = preferences.customCategories
+      ? [...(require('@/constants/categories').DEFAULT_CATEGORIES), ...preferences.customCategories]
+      : require('@/constants/categories').DEFAULT_CATEGORIES;
+
+    startSMSListener(
+      enabledCategories,
+      async (parsed: ParsedSMS, category: CategoryId) => {
+        await addTransaction({
+          amount: parsed.amount,
+          type: parsed.type === 'debit' ? 'debit' : 'credit',
+          category,
+          payee: parsed.payee || parsed.sender || 'SMS Transaction',
+          method: parsed.method,
+          note: `Auto-detected from SMS${parsed.accountLastDigits ? ` (A/c ${parsed.accountLastDigits})` : ''}`,
+          datetime: new Date().toISOString(),
+          source: 'sms' as any,
+        });
+        console.log(`[SMS] Auto-logged ${parsed.type}: ₹${parsed.amount} → ${category}`);
+      },
+      (err) => console.warn('[SMS] Listener error:', err)
+    );
+  }, [isLoaded, preferences.smsAutoDetect]);
 
   useEffect(() => {
     if (fontsLoaded && isLoaded) {
