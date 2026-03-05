@@ -1,5 +1,15 @@
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { exportAllData, importAllData } from './storage';
+
+// Dynamically import GoogleSignin to avoid crash when native module isn't linked (e.g. Expo Go)
+let GoogleSignin: any = null;
+let statusCodes: any = {};
+try {
+    const mod = require('@react-native-google-signin/google-signin');
+    GoogleSignin = mod.GoogleSignin;
+    statusCodes = mod.statusCodes;
+} catch (e) {
+    console.warn('[GoogleDrive] Native module not available — Google Sign-In disabled');
+}
 
 /**
  * Google Drive sync service
@@ -12,6 +22,7 @@ const BACKUP_FILENAME = 'spendwise-backup.json';
 // ─── Configuration ───────────────────────────────────────
 
 export function configureGoogleSignIn(webClientId: string) {
+    if (!GoogleSignin) return;
     GoogleSignin.configure({
         webClientId,
         scopes: [
@@ -24,6 +35,7 @@ export function configureGoogleSignIn(webClientId: string) {
 // ─── Auth ────────────────────────────────────────────────
 
 export async function signIn(): Promise<{ success: boolean; email?: string; error?: string }> {
+    if (!GoogleSignin) return { success: false, error: 'Google Sign-In not available (requires dev build)' };
     try {
         await GoogleSignin.hasPlayServices();
         const userInfo = await GoogleSignin.signIn();
@@ -45,6 +57,7 @@ export async function signIn(): Promise<{ success: boolean; email?: string; erro
 }
 
 export async function signOut(): Promise<void> {
+    if (!GoogleSignin) return;
     try {
         await GoogleSignin.signOut();
     } catch (error) {
@@ -53,15 +66,18 @@ export async function signOut(): Promise<void> {
 }
 
 export async function isSignedIn(): Promise<boolean> {
+    if (!GoogleSignin) return false;
     return GoogleSignin.getCurrentUser() !== null;
 }
 
 export function getUserEmail(): string | null {
+    if (!GoogleSignin) return null;
     const user = GoogleSignin.getCurrentUser();
     return (user as any)?.data?.user?.email || (user as any)?.user?.email || null;
 }
 
 async function getAccessToken(): Promise<string> {
+    if (!GoogleSignin) throw new Error('Google Sign-In not available');
     const tokens = await GoogleSignin.getTokens();
     return tokens.accessToken;
 }

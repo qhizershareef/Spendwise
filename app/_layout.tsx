@@ -35,7 +35,10 @@ export default function RootLayout() {
   const loadGoals = useBudgetStore((s) => s.loadGoals);
   const addTransaction = useTransactionStore((s) => s.addTransaction);
 
-  const [isUnlocked, setIsUnlocked] = useState(false);
+  // Start unlocked — the effect below will lock it if biometricLock is enabled.
+  // This prevents a blank screen when biometricLock is false, since the effect
+  // runs asynchronously after the first render.
+  const [isUnlocked, setIsUnlocked] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
 
   const [fontsLoaded, fontError] = useFonts({
@@ -88,17 +91,22 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, isLoaded]);
 
-  // Biometric lock check on app launch
+  // Biometric lock check — only runs once after preferences are loaded.
+  // We do NOT include preferences.biometricLock in deps to avoid re-locking
+  // the app mid-session when the user toggles the setting.
   useEffect(() => {
     if (!isLoaded) return;
 
     if (preferences.biometricLock) {
+      // Lock the app and prompt for auth
+      setIsUnlocked(false);
       authenticate();
     } else {
       setIsUnlocked(true);
       setAuthChecked(true);
     }
-  }, [isLoaded, preferences.biometricLock]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded]);
 
   const authenticate = async () => {
     try {

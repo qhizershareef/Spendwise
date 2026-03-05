@@ -16,7 +16,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.spendwise.app",
+      "package": "com.app.spendwise",
       "permissions": [
         "android.permission.RECEIVE_SMS",
         "android.permission.READ_SMS"
