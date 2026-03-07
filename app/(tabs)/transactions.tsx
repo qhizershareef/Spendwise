@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Swipeable } from 'react-native-gesture-handler';
+import { Calendar } from 'react-native-calendars';
 
 import { useTransactionStore } from '@/stores/transactionStore';
 import { formatCurrency, formatDate, getMonthName, getCurrentMonthKey, getPreviousMonthKey } from '@/utils/formatters';
@@ -102,11 +103,14 @@ export default function TransactionsScreen() {
     const [filterCategory, setFilterCategory] = useState<CategoryId | ''>('');
     const [sortOrder, setSortOrder] = useState<SortOrder>('date-desc');
     const [sortMenuVisible, setSortMenuVisible] = useState(false);
+    const [calendarVisible, setCalendarVisible] = useState(false);
+    const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
     // Month navigation
     const handlePrevMonth = useCallback(() => {
         const prev = getPreviousMonthKey(currentMonthKey);
         loadMonth(prev);
+        setSelectedDate(null);
     }, [currentMonthKey]);
 
     const handleNextMonth = useCallback(() => {
@@ -118,6 +122,7 @@ export default function TransactionsScreen() {
         // Don't go past current month
         if (next <= currentKey) {
             loadMonth(next);
+            setSelectedDate(null);
         }
     }, [currentMonthKey]);
 
@@ -140,6 +145,14 @@ export default function TransactionsScreen() {
 
         if (filterCategory) {
             items = items.filter((t) => t.category === filterCategory);
+        }
+
+        if (selectedDate) {
+            items = items.filter((t) => {
+                const tDate = new Date(t.datetime);
+                const localDateStr = `${tDate.getFullYear()}-${String(tDate.getMonth() + 1).padStart(2, '0')}-${String(tDate.getDate()).padStart(2, '0')}`;
+                return localDateStr === selectedDate || t.datetime.startsWith(selectedDate);
+            });
         }
 
         // Apply Sorting
@@ -208,10 +221,14 @@ export default function TransactionsScreen() {
             {/* Month Navigator */}
             <View style={styles.monthNav}>
                 <IconButton icon="chevron-left" size={20} onPress={handlePrevMonth} />
-                <Pressable onPress={() => { if (!isCurrentMonth) loadMonth(getCurrentMonthKey()); }}>
+                <Pressable
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                    onPress={() => setCalendarVisible(true)}
+                >
                     <Text variant="titleSmall" style={{ fontWeight: '700', color: theme.colors.onBackground }}>
                         {getMonthName(currentMonthKey)}
                     </Text>
+                    <MaterialCommunityIcons name="chevron-down" size={16} color={theme.colors.onBackground} />
                 </Pressable>
                 <IconButton
                     icon="chevron-right"
@@ -260,6 +277,20 @@ export default function TransactionsScreen() {
                     containerColor={theme.colors.surfaceVariant}
                 />
             </View>
+
+            {/* Active Date Filter */}
+            {selectedDate && (
+                <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.sm, flexDirection: 'row' }}>
+                    <Chip
+                        icon="calendar-remove"
+                        onClose={() => setSelectedDate(null)}
+                        onPress={() => setSelectedDate(null)}
+                        style={{ backgroundColor: theme.colors.primaryContainer }}
+                    >
+                        {new Date(selectedDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                    </Chip>
+                </View>
+            )}
 
             {/* Category Filter Chips */}
             <View style={{ marginTop: spacing.sm }}>
@@ -376,6 +407,60 @@ export default function TransactionsScreen() {
                                 </Text>
                             </Pressable>
                         ))}
+                    </Pressable>
+                </Pressable>
+            </Modal>
+
+            {/* Calendar Modal */}
+            <Modal visible={calendarVisible} transparent animationType="fade" onRequestClose={() => setCalendarVisible(false)}>
+                <Pressable style={styles.modalOverlay} onPress={() => setCalendarVisible(false)}>
+                    <Pressable style={[styles.modalContent, { backgroundColor: theme.colors.surface }]} onPress={(e) => e.stopPropagation()}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
+                            <Text variant="titleMedium" style={{ fontWeight: '700', color: theme.colors.onSurface }}>
+                                Select Date
+                            </Text>
+                            <IconButton icon="close" size={20} onPress={() => setCalendarVisible(false)} style={{ margin: 0 }} />
+                        </View>
+
+                        <Calendar
+                            current={selectedDate || `${currentMonthKey}-01`}
+                            onDayPress={(day: any) => {
+                                const newMonthKey = day.dateString.substring(0, 7);
+                                if (newMonthKey !== currentMonthKey) {
+                                    if (newMonthKey <= getCurrentMonthKey()) {
+                                        loadMonth(newMonthKey);
+                                    } else {
+                                        return;
+                                    }
+                                }
+                                setSelectedDate(day.dateString);
+                                setCalendarVisible(false);
+                            }}
+                            markedDates={{
+                                ...(selectedDate ? { [selectedDate]: { selected: true, selectedColor: theme.colors.primary } } : {})
+                            }}
+                            theme={{
+                                backgroundColor: theme.colors.surface,
+                                calendarBackground: theme.colors.surface,
+                                textSectionTitleColor: theme.colors.onSurfaceVariant,
+                                selectedDayBackgroundColor: theme.colors.primary,
+                                selectedDayTextColor: '#ffffff',
+                                todayTextColor: theme.colors.primary,
+                                dayTextColor: theme.colors.onSurface,
+                                textDisabledColor: theme.colors.onSurfaceDisabled,
+                                monthTextColor: theme.colors.onSurface,
+                                arrowColor: theme.colors.primary,
+                            }}
+                        />
+
+                        <View style={{ marginTop: spacing.lg }}>
+                            <Pressable
+                                onPress={() => { setSelectedDate(null); setCalendarVisible(false); loadMonth(getCurrentMonthKey()); }}
+                                style={{ padding: 14, alignItems: 'center', backgroundColor: theme.colors.secondaryContainer, borderRadius: borderRadius.md }}
+                            >
+                                <Text style={{ color: theme.colors.onSecondaryContainer, fontWeight: '700' }}>Jump to Current Month</Text>
+                            </Pressable>
+                        </View>
                     </Pressable>
                 </Pressable>
             </Modal>
