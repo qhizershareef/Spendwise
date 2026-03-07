@@ -1,22 +1,21 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import * as LocalAuthentication from 'expo-local-authentication';
+import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
-import { useColorScheme, View, StyleSheet, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
-import { PaperProvider, Text, Button, useTheme } from 'react-native-paper';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as LocalAuthentication from 'expo-local-authentication';
+import { Button, PaperProvider, Text } from 'react-native-paper';
 import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { lightTheme, darkTheme } from '@/constants/theme';
+import { darkTheme, lightTheme } from '@/constants/theme';
+import type { ParsedSMS } from '@/services/sms';
+import { isListenerActive, startSMSListener } from '@/services/sms';
+import { useBudgetStore } from '@/stores/budgetStore';
 import { usePreferencesStore } from '@/stores/preferencesStore';
 import { useTransactionStore } from '@/stores/transactionStore';
-import { useBudgetStore } from '@/stores/budgetStore';
-import { startSMSListener, isListenerActive } from '@/services/sms';
-import type { ParsedSMS } from '@/services/sms';
 import type { CategoryId } from '@/types';
 
 export { ErrorBoundary } from 'expo-router';
@@ -50,11 +49,19 @@ export default function RootLayout() {
   }, [fontError]);
 
   // Load all data on app startup
-  useEffect(() => {
-    loadPreferences();
-    loadMonth();
-    loadBudgets();
-    loadGoals();
+useEffect(() => {
+    const initializeData = async () => {
+      try {
+        await loadPreferences();
+        await loadMonth();
+        await loadBudgets();
+        await loadGoals();
+      } catch (error) {
+        console.error("Failed to load initial data:", error);
+      }
+    };
+    
+    initializeData();
   }, []);
 
   // Start SMS listener when enabled
@@ -111,7 +118,7 @@ export default function RootLayout() {
   const authenticate = async () => {
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Unlock SpendWise',
+        promptMessage: 'Unlock ScanSense360',
         fallbackLabel: 'Use passcode',
         cancelLabel: 'Cancel',
       });
@@ -151,7 +158,7 @@ export default function RootLayout() {
             <View style={[lockStyles.container, { backgroundColor: theme.colors.background }]}>
               <MaterialCommunityIcons name="lock" size={64} color={theme.colors.primary} />
               <Text variant="headlineSmall" style={{ color: theme.colors.onBackground, marginTop: 24, fontWeight: '700' }}>
-                SpendWise is Locked
+                ScanSense360 is Locked
               </Text>
               <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 8, textAlign: 'center' }}>
                 Authenticate to access your finances
@@ -164,7 +171,7 @@ export default function RootLayout() {
                 contentStyle={{ paddingVertical: 6 }}
                 labelStyle={{ fontWeight: '700' }}
               >
-                Unlock SpendWise
+                Unlock ScanSense360
               </Button>
             </View>
           </PaperProvider>

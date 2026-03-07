@@ -42,7 +42,7 @@ export async function exportAsCSV(): Promise<void> {
 
     const csv = [headers.join(','), ...rows].join('\n');
 
-    const fileName = `SpendWise_Export_${new Date().toISOString().slice(0, 10)}.csv`;
+    const fileName = `ScanSense360_Export_${new Date().toISOString().slice(0, 10)}.csv`;
     const file = new File(Paths.cache, fileName);
     if (file.exists) {
         file.delete();
@@ -52,7 +52,7 @@ export async function exportAsCSV(): Promise<void> {
 
     await Sharing.shareAsync(file.uri, {
         mimeType: 'text/csv',
-        dialogTitle: 'Export SpendWise Data',
+        dialogTitle: 'Export ScanSense360 Data',
         UTI: 'public.comma-separated-values-text',
     });
 }
@@ -63,13 +63,13 @@ export async function exportAsJSON(): Promise<void> {
     const data = await exportAllData();
 
     const json = JSON.stringify({
-        appName: 'SpendWise',
+        appName: 'ScanSense360',
         exportDate: new Date().toISOString(),
         version: '1.0.0',
         ...data,
     }, null, 2);
 
-    const fileName = `SpendWise_Export_${new Date().toISOString().slice(0, 10)}.json`;
+    const fileName = `ScanSense360_Export_${new Date().toISOString().slice(0, 10)}.json`;
     const file = new File(Paths.cache, fileName);
     if (file.exists) {
         file.delete();
@@ -79,7 +79,7 @@ export async function exportAsJSON(): Promise<void> {
 
     await Sharing.shareAsync(file.uri, {
         mimeType: 'application/json',
-        dialogTitle: 'Export SpendWise Data',
+        dialogTitle: 'Export ScanSense360 Data',
         UTI: 'public.json',
     });
 }

@@ -62,7 +62,7 @@ export default function ScannerScreen() {
             upiData.pa,
             amount,
             upiData.pn,
-            `SpendWise: ${getCategoryById(category)?.label || category}`,
+            `ScanSense360: ${getCategoryById(category)?.label || category}`,
             appForCategory
         );
 

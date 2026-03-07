@@ -606,7 +606,7 @@ export default function SettingsScreen() {
                     </Text>
                     <Surface style={[styles.card, { backgroundColor: theme.colors.surface }]} elevation={1}>
                         <List.Item
-                            title="SpendWise"
+                            title="ScanSense360"
                             description="Version 1.0.0"
                             left={(props) => <List.Icon {...props} icon="information" />}
                         />

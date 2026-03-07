@@ -119,7 +119,7 @@ async function callChatGPT(prompt: string, apiKey: string): Promise<string> {
             messages: [
                 {
                     role: 'system',
-                    content: 'You are a concise personal finance assistant for an Indian expense tracker app called SpendWise. All amounts are in INR (₹). Give short, actionable insights. Use emoji sparingly.',
+                    content: 'You are a concise personal finance assistant for an Indian expense tracker app called ScanSense360. All amounts are in INR (₹). Give short, actionable insights. Use emoji sparingly.',
                 },
                 { role: 'user', content: prompt },
             ],

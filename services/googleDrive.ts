@@ -17,7 +17,7 @@ try {
  * Files are stored in the hidden appDataFolder (private to this app)
  */
 
-const BACKUP_FILENAME = 'spendwise-backup.json';
+const BACKUP_FILENAME = 'scansense360-backup.json';
 
 // ─── Configuration ───────────────────────────────────────
 
@@ -102,7 +102,7 @@ export async function uploadBackup(): Promise<{ success: boolean; error?: string
         const accessToken = await getAccessToken();
         const allData = await exportAllData();
         const backupData = JSON.stringify({
-            appName: 'SpendWise',
+            appName: 'ScanSense360',
             backupDate: new Date().toISOString(),
             version: '1.0.0',
             ...allData,
@@ -111,7 +111,7 @@ export async function uploadBackup(): Promise<{ success: boolean; error?: string
         const existingFileId = await findBackupFile();
 
         // Multipart upload (metadata + content)
-        const boundary = '---spendwise-boundary---';
+        const boundary = '---scansense360-boundary---';
 
         if (existingFileId) {
             // Update existing file — PATCH only needs the media content

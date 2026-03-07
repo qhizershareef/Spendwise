@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "spendwise",
-    "slug": "spendwise",
+    "name": "scansense360",
+    "slug": "scansense360",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "spendwise",
+    "scheme": "scansense360",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/splash-icon.png",
@@ -16,7 +16,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.app.spendwise",
+      "package": "com.app.scansense360",
       "permissions": [
         "android.permission.RECEIVE_SMS",
         "android.permission.READ_SMS"

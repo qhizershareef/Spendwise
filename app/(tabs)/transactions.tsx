@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, FlatList, StyleSheet, Pressable, Animated } from 'react-native';
+import { View, FlatList, StyleSheet, Pressable, Animated, Modal } from 'react-native';
 import { Text, Searchbar, useTheme, Surface, Chip, IconButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -11,6 +11,8 @@ import { formatCurrency, formatDate, getMonthName, getCurrentMonthKey, getPrevio
 import { getCategoryById, DEFAULT_CATEGORIES } from '@/constants/categories';
 import { spacing, borderRadius, customColors } from '@/constants/theme';
 import type { Transaction, CategoryId } from '@/types';
+
+type SortOrder = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc' | 'alpha-asc' | 'alpha-desc';
 
 function SwipeableTransactionRow({ item, onPress, onDelete }: {
     item: Transaction;
@@ -98,6 +100,8 @@ export default function TransactionsScreen() {
     const { currentMonth, currentMonthKey, loadMonth, deleteTransaction } = useTransactionStore();
     const [search, setSearch] = useState('');
     const [filterCategory, setFilterCategory] = useState<CategoryId | ''>('');
+    const [sortOrder, setSortOrder] = useState<SortOrder>('date-desc');
+    const [sortMenuVisible, setSortMenuVisible] = useState(false);
 
     // Month navigation
     const handlePrevMonth = useCallback(() => {
@@ -123,12 +127,14 @@ export default function TransactionsScreen() {
         let items = currentMonth?.transactions || [];
 
         if (search.trim()) {
-            const q = search.toLowerCase();
+            const q = search.trim().toLowerCase();
             items = items.filter(
                 (t) =>
                     (t.payee?.toLowerCase().includes(q)) ||
                     (t.note?.toLowerCase().includes(q)) ||
-                    (getCategoryById(t.category)?.label.toLowerCase().includes(q))
+                    (t.method?.toLowerCase().includes(q)) ||
+                    (getCategoryById(t.category)?.label.toLowerCase().includes(q)) ||
+                    (t.amount.toString().includes(q))
             );
         }
 
@@ -136,8 +142,31 @@ export default function TransactionsScreen() {
             items = items.filter((t) => t.category === filterCategory);
         }
 
-        return [...items].sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
-    }, [currentMonth, search, filterCategory]);
+        // Apply Sorting
+        return [...items].sort((a, b) => {
+            switch (sortOrder) {
+                case 'date-asc':
+                    return new Date(a.datetime).getTime() - new Date(b.datetime).getTime();
+                case 'amount-desc':
+                    return b.amount - a.amount;
+                case 'amount-asc':
+                    return a.amount - b.amount;
+                case 'alpha-asc': {
+                    const nameA = (a.payee || getCategoryById(a.category)?.label || '').toLowerCase();
+                    const nameB = (b.payee || getCategoryById(b.category)?.label || '').toLowerCase();
+                    return nameA.localeCompare(nameB);
+                }
+                case 'alpha-desc': {
+                    const nameA = (a.payee || getCategoryById(a.category)?.label || '').toLowerCase();
+                    const nameB = (b.payee || getCategoryById(b.category)?.label || '').toLowerCase();
+                    return nameB.localeCompare(nameA);
+                }
+                case 'date-desc':
+                default:
+                    return new Date(b.datetime).getTime() - new Date(a.datetime).getTime();
+            }
+        });
+    }, [currentMonth, search, filterCategory, sortOrder]);
 
     // Group transactions by date
     const groupedTransactions = useMemo(() => {
@@ -213,14 +242,22 @@ export default function TransactionsScreen() {
                 </Surface>
             </View>
 
-            {/* Search */}
-            <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.sm }}>
+            {/* Search and Sort */}
+            <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
                 <Searchbar
                     value={search}
                     onChangeText={setSearch}
-                    placeholder="Search transactions..."
-                    style={{ backgroundColor: theme.colors.surfaceVariant, borderRadius: borderRadius.lg, elevation: 0 }}
+                    placeholder="Search payee, note, amount..."
+                    style={{ flex: 1, backgroundColor: theme.colors.surfaceVariant, borderRadius: borderRadius.lg, elevation: 0 }}
                     inputStyle={{ fontSize: 14 }}
+                />
+
+                <IconButton
+                    icon="sort-variant"
+                    mode="contained-tonal"
+                    size={24}
+                    onPress={() => setSortMenuVisible(true)}
+                    containerColor={theme.colors.surfaceVariant}
                 />
             </View>
 
@@ -295,6 +332,53 @@ export default function TransactionsScreen() {
                     </View>
                 )}
             />
+
+            {/* Sort Menu Modal */}
+            <Modal visible={sortMenuVisible} transparent animationType="fade" onRequestClose={() => setSortMenuVisible(false)}>
+                <Pressable style={styles.modalOverlay} onPress={() => setSortMenuVisible(false)}>
+                    <Pressable style={[styles.modalContent, { backgroundColor: theme.colors.surface }]} onPress={(e) => e.stopPropagation()}>
+                        <Text variant="titleMedium" style={{ fontWeight: '700', color: theme.colors.onSurface, marginBottom: spacing.md }}>
+                            Sort Transactions By
+                        </Text>
+                        {[
+                            { value: 'date-desc', label: 'Date (Newest First)', icon: 'calendar-arrow-down' },
+                            { value: 'date-asc', label: 'Date (Oldest First)', icon: 'calendar-arrow-up' },
+                            { value: 'amount-desc', label: 'Amount (High to Low)', icon: 'sort-numeric-descending' },
+                            { value: 'amount-asc', label: 'Amount (Low to High)', icon: 'sort-numeric-ascending' },
+                            { value: 'alpha-asc', label: 'Alphabetical (A-Z)', icon: 'sort-alphabetical-ascending' },
+                            { value: 'alpha-desc', label: 'Alphabetical (Z-A)', icon: 'sort-alphabetical-descending' },
+                        ].map((option) => (
+                            <Pressable
+                                key={option.value}
+                                onPress={() => {
+                                    setSortOrder(option.value as SortOrder);
+                                    setSortMenuVisible(false);
+                                }}
+                                style={[
+                                    styles.sortOption,
+                                    sortOrder === option.value && { backgroundColor: theme.colors.primaryContainer }
+                                ]}
+                            >
+                                <MaterialCommunityIcons
+                                    name={option.icon as any}
+                                    size={20}
+                                    color={sortOrder === option.value ? theme.colors.primary : theme.colors.onSurfaceVariant}
+                                />
+                                <Text
+                                    variant="bodyMedium"
+                                    style={{
+                                        marginLeft: 12,
+                                        color: sortOrder === option.value ? theme.colors.primary : theme.colors.onSurface,
+                                        fontWeight: sortOrder === option.value ? '700' : '500'
+                                    }}
+                                >
+                                    {option.label}
+                                </Text>
+                            </Pressable>
+                        ))}
+                    </Pressable>
+                </Pressable>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -367,5 +451,25 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         paddingTop: 60,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.lg,
+        paddingBottom: spacing.xl,
+    },
+    sortOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 14,
+        paddingHorizontal: spacing.sm,
+        borderRadius: borderRadius.md,
+        marginBottom: 4,
     },
 });

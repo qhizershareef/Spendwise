@@ -141,7 +141,7 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <View>
             <Text variant="titleLarge" style={{ fontWeight: '800', color: theme.colors.onBackground }}>
-              SpendWise
+              ScanSense360
             </Text>
             <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
               {monthName}

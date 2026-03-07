@@ -1,7 +1,7 @@
 import type { Transaction, MonthlyData, UserPreferences, Budget, SavingsGoal } from '@/types';
 import { File, Directory, Paths } from 'expo-file-system';
 
-const DATA_DIR = new Directory(Paths.document, 'spendwise-data');
+const DATA_DIR = new Directory(Paths.document, 'scansense360-data');
 
 function ensureDataDir(): void {
     if (!DATA_DIR.exists) {

@@ -1,4 +1,4 @@
-# 💰 SpendWise — Smart Expense Tracker
+# 💰 ScanSense360 — Smart Expense Tracker
 
 A premium, AI-powered personal finance tracker built with **React Native** and **Expo**. Track every rupee, get intelligent insights, visualize your spending, and sync to Google Drive — all from your phone.
 
@@ -81,8 +81,8 @@ Tap any card on the home screen for visual deep dives:
 
 ```bash
 # Clone the repository
-git clone https://github.com/qhizershareef/Spendwise.git
-cd Spendwise
+git clone https://github.com/qhizershareef/ScanSense360.git
+cd ScanSense360
 
 # Install dependencies
 npm install
@@ -104,7 +104,7 @@ Scan the QR code with **Expo Go** on your phone to run the app.
 
 ## 🤖 AI Setup
 
-SpendWise supports two AI providers for intelligent spending insights:
+ScanSense360 supports two AI providers for intelligent spending insights:
 
 ### Google Gemini (Recommended)
 1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
@@ -126,7 +126,7 @@ Tap **Test Connection** to verify your key works.
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a project → Enable **Google Drive API**
 3. Create **OAuth 2.0 Client ID** (Web Application type)
-4. Add authorized redirect URI: `https://auth.expo.io/@anonymous/spendwise`
+4. Add authorized redirect URI: `https://auth.expo.io/@anonymous/scansense360`
 5. Copy the Client ID into `services/googleDrive.ts`
 
 ### For Production
@@ -138,7 +138,7 @@ Tap **Test Connection** to verify your key works.
 ## 🏗️ Project Structure
 
 ```
-spendwise/
+scansense360/
 ├── app/                    # Screens & navigation (Expo Router)
 │   ├── (tabs)/             # Tab screens
 │   │   ├── index.tsx       # Home / Dashboard
@@ -237,7 +237,7 @@ Edit `services/ai.ts` to modify:
 
 Data is stored as JSON files in the app's document directory:
 ```
-spendwise-data/
+scansense360-data/
 ├── 2025-01.json      # January transactions
 ├── 2025-02.json      # February transactions
 ├── preferences.json  # User settings

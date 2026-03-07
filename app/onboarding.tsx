@@ -40,7 +40,7 @@ const SLIDES: Slide[] = [
         icon: 'wallet-outline',
         iconColor: customColors.brand.primary,
         iconBg: customColors.brand.primary + '18',
-        title: 'Welcome to SpendWise',
+        title: 'Welcome to ScanSense360',
         subtitle: 'Your smart personal finance companion. Track, analyze, and optimize your spending effortlessly.',
         features: [
             { icon: 'check-circle', text: 'Track every rupee' },
@@ -188,7 +188,7 @@ export default function OnboardingScreen() {
 
     const handleComplete = useCallback(() => {
         updatePreference('onboardingCompleted', true);
-        router.replace('/(tabs)' as any);
+        router.replace('/permissions' as any);
     }, []);
 
     const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
