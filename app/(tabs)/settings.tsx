@@ -23,17 +23,24 @@ import { testConnection } from '@/services/ai';
 import { exportAsCSV, exportAsJSON } from '@/services/export';
 import { configureGoogleSignIn } from '@/services/googleDrive';
 import { useSyncStore } from '@/stores/syncStore';
+import { useTransactionStore } from '@/stores/transactionStore';
+import * as DocumentPicker from 'expo-document-picker';
+import { File, Paths } from 'expo-file-system';
+import { writeAsStringAsync, readAsStringAsync, cacheDirectory, EncodingType } from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import Papa from 'papaparse';
 import { spacing, borderRadius, customColors } from '@/constants/theme';
 import { DEFAULT_CATEGORIES, getExpenseCategories } from '@/constants/categories';
 import * as Notifications from 'expo-notifications';
 import * as LocalAuthentication from 'expo-local-authentication';
-import type { CategoryId, Category } from '@/types';
+import type { CategoryId, Category, Transaction } from '@/types';
 
 export default function SettingsScreen() {
     const theme = useTheme();
     const { preferences, updatePreference, addCustomCategory, removeCustomCategory, toggleCategory, toggleDisableCategory, getAllCategories } = usePreferencesStore();
     const { budgets, addBudget, deleteBudget } = useBudgetStore();
     const { isSignedIn, userEmail, isSyncing, lastSyncTime, lastError, checkSignInStatus, signIn, signOut, syncNow, restoreFromDrive } = useSyncStore();
+    const { addTransaction } = useTransactionStore();
 
     // Configure Google Sign-In and check status on mount
     useEffect(() => {
@@ -64,6 +71,35 @@ export default function SettingsScreen() {
     const [exportDialog, setExportDialog] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
 
+    // Import state
+    const [isImporting, setIsImporting] = useState(false);
+    const [importHelpDialog, setImportHelpDialog] = useState(false);
+
+    const downloadImportTemplate = async () => {
+        try {
+            const headers = ['Date', 'Amount', 'Type', 'Category', 'Payee', 'Note'];
+            const sampleRow = [new Date().toLocaleDateString('en-IN'), '500', 'Expense', 'Food', 'Local Cafe', 'Lunch'];
+            const csv = [headers.join(','), sampleRow.join(',')].join('\n');
+
+            const fileName = `ScanSense360_Import_Template.csv`;
+            const fileUri = `${cacheDirectory}${fileName}`;
+
+            await writeAsStringAsync(fileUri, csv, {
+                encoding: EncodingType.UTF8,
+            });
+
+            await Sharing.shareAsync(fileUri, {
+                mimeType: 'text/csv',
+                dialogTitle: 'Download Import Template',
+                UTI: 'public.comma-separated-values-text',
+            });
+        } catch (error) {
+            setSnackMsg('Failed to create template');
+            setSnackVisible(true);
+        }
+    };
+
+
     const handleAddCategory = async () => {
         if (!catLabel.trim()) return;
         const id = catLabel.toLowerCase().replace(/\s+/g, '_');
@@ -93,6 +129,154 @@ export default function SettingsScreen() {
         setBudgetAmount('');
         setSnackMsg('Budget added ✓');
         setSnackVisible(true);
+    };
+
+    const handleImportCSV = async () => {
+        setImportHelpDialog(false);
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: ['text/csv', 'text/comma-separated-values', 'application/csv', '*/*'],
+                copyToCacheDirectory: true,
+            });
+
+            if (result.canceled || !result.assets || result.assets.length === 0) {
+                return;
+            }
+
+            setIsImporting(true);
+            const fileUri = result.assets[0].uri;
+            const fileContent = await readAsStringAsync(fileUri);
+
+            await new Promise<void>((resolve, reject) => {
+                Papa.parse(fileContent, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: async (results) => {
+                        try {
+                            const newTxs: Omit<Transaction, 'id'>[] = [];
+                            let importedCount = 0;
+                            let failedCount = 0;
+
+                            for (const rawRow of results.data as any[]) {
+                                // Normalize keys (lowercase, trim)
+                                const row: Record<string, string> = {};
+                                for (const key in rawRow) {
+                                    const cleanKey = key.replace(/^\uFEFF/, '').trim().toLowerCase();
+                                    row[cleanKey] = (rawRow[key] || '').toString().trim();
+                                }
+
+                                // 1. Flexible Date extraction
+                                const dateStr = row['date'] || row['datetime'] || row['time'] || '';
+                                if (!dateStr) {
+                                    failedCount++;
+                                    continue; // Skip silently if no date
+                                }
+
+                                // Robust Date Parsing
+                                let datetime = '';
+
+                                // Try DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY first
+                                const dateMatch = dateStr.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})(?:\s|$)/);
+                                if (dateMatch) {
+                                    const day = dateMatch[1].padStart(2, '0');
+                                    const month = dateMatch[2].padStart(2, '0');
+                                    const year = dateMatch[3].length === 2 ? `20${dateMatch[3]}` : dateMatch[3];
+                                    const possibleDate = new Date(`${year}-${month}-${day}T12:00:00`);
+                                    if (!isNaN(possibleDate.getTime())) {
+                                        datetime = possibleDate.toISOString();
+                                    }
+                                }
+
+                                // Fallback to standard JS Date parsing
+                                if (!datetime) {
+                                    try {
+                                        const d = new Date(dateStr);
+                                        if (!isNaN(d.getTime())) {
+                                            datetime = d.toISOString();
+                                        }
+                                    } catch (e) {
+                                        // Ignore
+                                    }
+                                }
+
+                                if (!datetime) {
+                                    failedCount++;
+                                    continue; // Unparseable date
+                                }
+
+                                // 2. Extract Type
+                                const typeStr = (row['type'] || row['transaction type'] || '').toLowerCase();
+                                const isIncome = typeStr.includes('income') || typeStr.includes('credit') || typeStr.includes('deposit');
+                                const type = isIncome ? 'credit' : 'debit';
+
+                                // 3. Robust Amount
+                                const amountStr = row['amount'] || row['value'] || row['price'] || '';
+                                // Clean non-numeric except . and -
+                                const cleanAmountStr = amountStr.replace(/[^0-9.-]/g, '');
+                                const amount = parseFloat(cleanAmountStr);
+
+                                if (isNaN(amount) || amount <= 0) {
+                                    failedCount++;
+                                    continue; // Skip invalid amounts
+                                }
+
+                                // 4. Flexible Category mapping
+                                const rawCatName = (row['category'] || 'others').trim().toLowerCase();
+                                const rawCatId = rawCatName.replace(/[^a-z0-9]/g, '_');
+                                let category: CategoryId = 'others';
+
+                                const allCats = [...DEFAULT_CATEGORIES, ...getAllCategories()];
+                                const foundCat = allCats.find(c =>
+                                    c.id === rawCatId ||
+                                    c.label.toLowerCase() === rawCatName ||
+                                    c.id === rawCatName ||
+                                    (c.subcategories && c.subcategories.some(s => s.toLowerCase() === rawCatName))
+                                );
+
+                                if (foundCat) {
+                                    category = foundCat.id as CategoryId;
+                                }
+
+                                // Combine
+                                newTxs.push({
+                                    amount,
+                                    type,
+                                    category,
+                                    payee: row['payee'] || row['merchant'] || row['description'] || 'Imported',
+                                    note: row['note'] || row['notes'] || row['memo'] || '',
+                                    method: 'wallet', // Changed 'other' to a valid payment method
+                                    paymentApp: 'other',
+                                    source: 'manual',
+                                    datetime,
+                                });
+                                importedCount++;
+                            }
+
+                            if (newTxs.length > 0) {
+                                await useTransactionStore.getState().batchAddTransactions(newTxs);
+                            }
+
+                            let msg = `Imported ${importedCount} transactions.`;
+                            if (failedCount > 0) msg += ` Skipped ${failedCount} rows.`;
+                            setSnackMsg(msg);
+                            setSnackVisible(true);
+                            resolve();
+                        } catch (err) {
+                            reject(err);
+                        }
+                    },
+                    error: (error: any) => {
+                        reject(new Error(`CSV Parse Error: ${error.message}`));
+                    }
+                });
+            });
+            setIsImporting(false);
+        } catch (error: any) {
+            console.error("CSV Import Error:", error);
+            setSnackMsg(`Failed to import file: ${error?.message || 'Unknown error'}`);
+            setSnackVisible(true);
+            setIsImporting(false);
+        }
     };
 
     return (
@@ -594,7 +778,15 @@ export default function SettingsScreen() {
                             description={isExporting ? 'Exporting...' : 'Export as CSV or JSON'}
                             left={(props) => <List.Icon {...props} icon="export" />}
                             onPress={() => setExportDialog(true)}
-                            disabled={isExporting}
+                            disabled={isExporting || isImporting}
+                        />
+                        <Divider />
+                        <List.Item
+                            title="Import Data"
+                            description={isImporting ? 'Importing...' : 'Bulk upload transactions via CSV'}
+                            left={(props) => <List.Icon {...props} icon="import" />}
+                            onPress={() => setImportHelpDialog(true)}
+                            disabled={isImporting || isExporting}
                         />
                     </Surface>
                 </View>
@@ -699,6 +891,37 @@ export default function SettingsScreen() {
                     <Dialog.Actions>
                         <Button onPress={() => setCategoryDialog(false)}>Cancel</Button>
                         <Button onPress={handleAddCategory} disabled={!catLabel.trim()}>Add</Button>
+                    </Dialog.Actions>
+                </Dialog>
+            </Portal>
+
+            {/* Import Help Dialog */}
+            <Portal>
+                <Dialog visible={importHelpDialog} onDismiss={() => setImportHelpDialog(false)}>
+                    <Dialog.Title>Import Transactions</Dialog.Title>
+                    <Dialog.Content>
+                        <Text variant="bodyMedium" style={{ marginBottom: 16 }}>
+                            Upload a CSV file to add multiple transactions at once.
+                        </Text>
+                        <View style={{ backgroundColor: theme.colors.surfaceVariant, padding: 12, borderRadius: 8, marginBottom: 16 }}>
+                            <Text variant="labelMedium" style={{ fontWeight: 'bold' }}>Supported Columns:</Text>
+                            <Text variant="bodySmall" style={{ marginTop: 4 }}>
+                                • <Text style={{ fontWeight: 'bold' }}>Date</Text> (Required - YYYY-MM-DD or DD/MM/YYYY)
+                            </Text>
+                            <Text variant="bodySmall">
+                                • <Text style={{ fontWeight: 'bold' }}>Amount</Text> (Required)
+                            </Text>
+                            <Text variant="bodySmall">
+                                • <Text style={{ fontWeight: 'bold' }}>Type</Text> (Income/Expense)
+                            </Text>
+                            <Text variant="bodySmall">
+                                • Category, Payee, Note (Optional)
+                            </Text>
+                        </View>
+                    </Dialog.Content>
+                    <Dialog.Actions>
+                        <Button onPress={downloadImportTemplate}>Download Template</Button>
+                        <Button onPress={handleImportCSV} mode="contained">Select CSV</Button>
                     </Dialog.Actions>
                 </Dialog>
             </Portal>

@@ -1,4 +1,4 @@
-import { File, Paths } from 'expo-file-system';
+import { documentDirectory, writeAsStringAsync, EncodingType } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { exportAllData } from './storage';
 import { getCategoryById } from '@/constants/categories';
@@ -43,14 +43,13 @@ export async function exportAsCSV(): Promise<void> {
     const csv = [headers.join(','), ...rows].join('\n');
 
     const fileName = `ScanSense360_Export_${new Date().toISOString().slice(0, 10)}.csv`;
-    const file = new File(Paths.cache, fileName);
-    if (file.exists) {
-        file.delete();
-    }
-    file.create();
-    file.write(csv);
+    const fileUri = `${documentDirectory}${fileName}`;
 
-    await Sharing.shareAsync(file.uri, {
+    await writeAsStringAsync(fileUri, csv, {
+        encoding: EncodingType.UTF8,
+    });
+
+    await Sharing.shareAsync(fileUri, {
         mimeType: 'text/csv',
         dialogTitle: 'Export ScanSense360 Data',
         UTI: 'public.comma-separated-values-text',
@@ -70,14 +69,13 @@ export async function exportAsJSON(): Promise<void> {
     }, null, 2);
 
     const fileName = `ScanSense360_Export_${new Date().toISOString().slice(0, 10)}.json`;
-    const file = new File(Paths.cache, fileName);
-    if (file.exists) {
-        file.delete();
-    }
-    file.create();
-    file.write(json);
+    const fileUri = `${documentDirectory}${fileName}`;
 
-    await Sharing.shareAsync(file.uri, {
+    await writeAsStringAsync(fileUri, json, {
+        encoding: EncodingType.UTF8,
+    });
+
+    await Sharing.shareAsync(fileUri, {
         mimeType: 'application/json',
         dialogTitle: 'Export ScanSense360 Data',
         UTI: 'public.json',

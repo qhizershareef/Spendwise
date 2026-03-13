@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import DatePicker from 'react-native-date-picker';
 
 import { useTransactionStore } from '@/stores/transactionStore';
 import { usePreferencesStore } from '@/stores/preferencesStore';
@@ -45,6 +46,8 @@ export default function TransactionDetailScreen() {
     const [editNote, setEditNote] = useState('');
     const [editMethod, setEditMethod] = useState<PaymentMethod>('upi');
     const [editPaymentApp, setEditPaymentApp] = useState<PaymentApp>('gpay');
+    const [editDate, setEditDate] = useState(new Date());
+    const [datePickerOpen, setDatePickerOpen] = useState(false);
 
     useEffect(() => {
         if (transaction) {
@@ -55,6 +58,7 @@ export default function TransactionDetailScreen() {
             setEditNote(transaction.note || '');
             setEditMethod(transaction.method);
             setEditPaymentApp(transaction.paymentApp || 'gpay');
+            setEditDate(new Date(transaction.datetime));
         }
     }, [transaction]);
 
@@ -100,6 +104,7 @@ export default function TransactionDetailScreen() {
             note: editNote || undefined,
             method: editMethod,
             paymentApp: editMethod === 'upi' ? editPaymentApp : undefined,
+            datetime: editDate.toISOString(),
         });
         setIsEditing(false);
         setSnackMsg('Transaction updated ✓');
@@ -133,6 +138,7 @@ export default function TransactionDetailScreen() {
         setEditNote(transaction.note || '');
         setEditMethod(transaction.method);
         setEditPaymentApp(transaction.paymentApp || 'gpay');
+        setEditDate(new Date(transaction.datetime));
         setIsEditing(true);
     };
 
@@ -177,6 +183,25 @@ export default function TransactionDetailScreen() {
                                 activeUnderlineColor="transparent"
                             />
                         </Surface>
+                    </View>
+
+                    {/* Date/Time */}
+                    <View style={styles.section}>
+                        <Text variant="titleSmall" style={{ fontWeight: '700', color: theme.colors.onBackground, marginBottom: 8 }}>
+                            Date & Time
+                        </Text>
+                        <Pressable
+                            onPress={() => setDatePickerOpen(true)}
+                            style={[styles.dropdownButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}
+                        >
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <MaterialCommunityIcons name="calendar-clock" size={20} color={theme.colors.onSurfaceVariant} />
+                                <Text variant="bodyMedium" style={{ marginLeft: 10, color: theme.colors.onSurface }}>
+                                    {formatDateTime(editDate.toISOString())}
+                                </Text>
+                            </View>
+                            <MaterialCommunityIcons name="pencil" size={18} color={theme.colors.onSurfaceVariant} />
+                        </Pressable>
                     </View>
 
                     {/* Category */}
@@ -316,6 +341,21 @@ export default function TransactionDetailScreen() {
                         </View>
                     </Pressable>
                 </Modal>
+
+                <DatePicker
+                    modal
+                    open={datePickerOpen}
+                    date={editDate}
+                    mode="datetime"
+                    onConfirm={(date) => {
+                        setDatePickerOpen(false);
+                        setEditDate(date);
+                    }}
+                    onCancel={() => {
+                        setDatePickerOpen(false);
+                    }}
+                    theme={theme.dark ? 'dark' : 'light'}
+                />
 
                 <Snackbar visible={snackVisible} onDismiss={() => setSnackVisible(false)} duration={2000}>
                     {snackMsg}

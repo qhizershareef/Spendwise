@@ -1,11 +1,12 @@
+import { documentDirectory, getInfoAsync, makeDirectoryAsync, readAsStringAsync, writeAsStringAsync, readDirectoryAsync } from 'expo-file-system/legacy';
 import type { Transaction, MonthlyData, UserPreferences, Budget, SavingsGoal } from '@/types';
-import { File, Directory, Paths } from 'expo-file-system';
 
-const DATA_DIR = new Directory(Paths.document, 'scansense360-data');
+const DATA_DIR = `${documentDirectory}scansense360-data/`;
 
-function ensureDataDir(): void {
-    if (!DATA_DIR.exists) {
-        DATA_DIR.create({ intermediates: true });
+async function ensureDataDirAsync(): Promise<void> {
+    const info = await getInfoAsync(DATA_DIR);
+    if (!info.exists) {
+        await makeDirectoryAsync(DATA_DIR, { intermediates: true });
     }
 }
 
@@ -15,16 +16,17 @@ function getMonthKey(date: Date): string {
     return `${y}-${m}`;
 }
 
-function getMonthFile(monthKey: string): File {
-    return new File(DATA_DIR, `${monthKey}.json`);
+function getMonthFile(monthKey: string): string {
+    return `${DATA_DIR}${monthKey}.json`;
 }
 
 // ─── Monthly Transaction Data ────────────────────────────────
 
 export async function loadMonthlyData(monthKey: string): Promise<MonthlyData> {
-    ensureDataDir();
+    await ensureDataDirAsync();
     const file = getMonthFile(monthKey);
-    if (!file.exists) {
+    const info = await getInfoAsync(file);
+    if (!info.exists) {
         return {
             month: monthKey,
             transactions: [],
@@ -36,12 +38,12 @@ export async function loadMonthlyData(monthKey: string): Promise<MonthlyData> {
             },
         };
     }
-    const raw = await file.text();
+    const raw = await readAsStringAsync(file);
     return JSON.parse(raw) as MonthlyData;
 }
 
-export function saveMonthlyData(data: MonthlyData): void {
-    ensureDataDir();
+export async function saveMonthlyData(data: MonthlyData): Promise<void> {
+    await ensureDataDirAsync();
     const file = getMonthFile(data.month);
 
     // Recalculate metadata
@@ -58,17 +60,14 @@ export function saveMonthlyData(data: MonthlyData): void {
         lastUpdated: new Date().toISOString(),
     };
 
-    if (!file.exists) {
-        file.create({ intermediates: true });
-    }
-    file.write(JSON.stringify(data, null, 2));
+    await writeAsStringAsync(file, JSON.stringify(data, null, 2));
 }
 
 export async function addTransaction(transaction: Transaction): Promise<void> {
     const monthKey = getMonthKey(new Date(transaction.datetime));
     const data = await loadMonthlyData(monthKey);
     data.transactions.push(transaction);
-    saveMonthlyData(data);
+    await saveMonthlyData(data);
 }
 
 export async function updateTransaction(transaction: Transaction): Promise<void> {
@@ -77,7 +76,7 @@ export async function updateTransaction(transaction: Transaction): Promise<void>
     const idx = data.transactions.findIndex((t) => t.id === transaction.id);
     if (idx !== -1) {
         data.transactions[idx] = transaction;
-        saveMonthlyData(data);
+        await saveMonthlyData(data);
     }
 }
 
@@ -85,90 +84,111 @@ export async function deleteTransaction(id: string, datetime: string): Promise<v
     const monthKey = getMonthKey(new Date(datetime));
     const data = await loadMonthlyData(monthKey);
     data.transactions = data.transactions.filter((t) => t.id !== id);
-    saveMonthlyData(data);
+    await saveMonthlyData(data);
+}
+
+export async function batchAddTransactions(transactions: Transaction[]): Promise<void> {
+    await ensureDataDirAsync();
+    const byMonth: Record<string, Transaction[]> = {};
+    for (const t of transactions) {
+        const mk = getMonthKey(new Date(t.datetime));
+        if (!byMonth[mk]) byMonth[mk] = [];
+        byMonth[mk].push(t);
+    }
+
+    for (const [mk, txs] of Object.entries(byMonth)) {
+        const data = await loadMonthlyData(mk);
+        data.transactions.push(...txs);
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+        for (const t of data.transactions) {
+            if (t.type === 'credit') totalIncome += t.amount;
+            else totalExpense += t.amount;
+        }
+        data.metadata = {
+            totalIncome,
+            totalExpense,
+            transactionCount: data.transactions.length,
+            lastUpdated: new Date().toISOString(),
+        };
+
+        const file = getMonthFile(data.month);
+        await writeAsStringAsync(file, JSON.stringify(data, null, 2));
+    }
 }
 
 // ─── Preferences ─────────────────────────────────────────────
 
-function getPrefsFile(): File {
-    return new File(DATA_DIR, 'preferences.json');
+function getPrefsFile(): string {
+    return `${DATA_DIR}preferences.json`;
 }
 
 export async function loadPreferences(): Promise<UserPreferences | null> {
-    ensureDataDir();
+    await ensureDataDirAsync();
     const file = getPrefsFile();
-    if (!file.exists) return null;
-    const raw = await file.text();
+    const info = await getInfoAsync(file);
+    if (!info.exists) return null;
+    const raw = await readAsStringAsync(file);
     return JSON.parse(raw) as UserPreferences;
 }
 
-export function savePreferences(prefs: UserPreferences): void {
-    ensureDataDir();
+export async function savePreferences(prefs: UserPreferences): Promise<void> {
+    await ensureDataDirAsync();
     const file = getPrefsFile();
-    if (!file.exists) {
-        file.create({ intermediates: true });
-    }
-    file.write(JSON.stringify(prefs, null, 2));
+    await writeAsStringAsync(file, JSON.stringify(prefs, null, 2));
 }
 
 // ─── Budgets ─────────────────────────────────────────────────
 
-function getBudgetsFile(): File {
-    return new File(DATA_DIR, 'budgets.json');
+function getBudgetsFile(): string {
+    return `${DATA_DIR}budgets.json`;
 }
 
 export async function loadBudgets(): Promise<Budget[]> {
-    ensureDataDir();
+    await ensureDataDirAsync();
     const file = getBudgetsFile();
-    if (!file.exists) return [];
-    const raw = await file.text();
+    const info = await getInfoAsync(file);
+    if (!info.exists) return [];
+    const raw = await readAsStringAsync(file);
     return JSON.parse(raw) as Budget[];
 }
 
-export function saveBudgets(budgets: Budget[]): void {
-    ensureDataDir();
+export async function saveBudgets(budgets: Budget[]): Promise<void> {
+    await ensureDataDirAsync();
     const file = getBudgetsFile();
-    if (!file.exists) {
-        file.create({ intermediates: true });
-    }
-    file.write(JSON.stringify(budgets, null, 2));
+    await writeAsStringAsync(file, JSON.stringify(budgets, null, 2));
 }
 
 // ─── Goals ───────────────────────────────────────────────────
 
-function getGoalsFile(): File {
-    return new File(DATA_DIR, 'goals.json');
+function getGoalsFile(): string {
+    return `${DATA_DIR}goals.json`;
 }
 
 export async function loadGoals(): Promise<SavingsGoal[]> {
-    ensureDataDir();
+    await ensureDataDirAsync();
     const file = getGoalsFile();
-    if (!file.exists) return [];
-    const raw = await file.text();
+    const info = await getInfoAsync(file);
+    if (!info.exists) return [];
+    const raw = await readAsStringAsync(file);
     return JSON.parse(raw) as SavingsGoal[];
 }
 
-export function saveGoals(goals: SavingsGoal[]): void {
-    ensureDataDir();
+export async function saveGoals(goals: SavingsGoal[]): Promise<void> {
+    await ensureDataDirAsync();
     const file = getGoalsFile();
-    if (!file.exists) {
-        file.create({ intermediates: true });
-    }
-    file.write(JSON.stringify(goals, null, 2));
+    await writeAsStringAsync(file, JSON.stringify(goals, null, 2));
 }
 
 // ─── List all monthly data files ─────────────────────────────
 
-export function listAvailableMonths(): string[] {
-    ensureDataDir();
-    const items = DATA_DIR.list();
+export async function listAvailableMonths(): Promise<string[]> {
+    await ensureDataDirAsync();
+    const info = await getInfoAsync(DATA_DIR);
+    if (!info.exists) return [];
+    const items = await readDirectoryAsync(DATA_DIR);
     return items
-        .filter((item): item is File => item instanceof File)
-        .map((f) => {
-            // Extract name from uri
-            const parts = f.uri.split('/');
-            return parts[parts.length - 1];
-        })
         .filter((name) => /^\d{4}-\d{2}\.json$/.test(name))
         .map((name) => name.replace('.json', ''))
         .sort()
@@ -183,7 +203,7 @@ export async function exportAllData(): Promise<{
     budgets: Budget[];
     goals: SavingsGoal[];
 }> {
-    const monthKeys = listAvailableMonths();
+    const monthKeys = await listAvailableMonths();
     const months = await Promise.all(monthKeys.map(loadMonthlyData));
     const preferences = await loadPreferences();
     const budgets = await loadBudgets();
@@ -199,22 +219,22 @@ export async function importAllData(data: {
     budgets?: Budget[];
     goals?: SavingsGoal[];
 }): Promise<void> {
-    ensureDataDir();
+    await ensureDataDirAsync();
 
     if (data.months) {
         for (const month of data.months) {
-            saveMonthlyData(month);
+            await saveMonthlyData(month);
         }
     }
     if (data.preferences) {
-        savePreferences(data.preferences);
+        await savePreferences(data.preferences);
     }
     if (data.budgets) {
-        saveBudgets(data.budgets);
+        await saveBudgets(data.budgets);
     }
     if (data.goals) {
-        saveGoals(data.goals);
+        await saveGoals(data.goals);
     }
 }
 
-export { DATA_DIR, getMonthKey, ensureDataDir };
+export { DATA_DIR, getMonthKey, ensureDataDirAsync as ensureDataDir };

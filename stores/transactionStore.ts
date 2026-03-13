@@ -13,6 +13,7 @@ interface TransactionState {
     // Actions
     loadMonth: (monthKey?: string) => Promise<void>;
     addTransaction: (data: Omit<Transaction, 'id'>) => Promise<Transaction>;
+    batchAddTransactions: (dataList: Omit<Transaction, 'id'>[]) => Promise<Transaction[]>;
     updateTransaction: (transaction: Transaction) => Promise<void>;
     deleteTransaction: (id: string, datetime: string) => Promise<void>;
     getTransactionsByCategory: (category: CategoryId) => Transaction[];
@@ -50,6 +51,21 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
             await state.loadMonth(state.currentMonthKey);
         }
         return transaction;
+    },
+
+    batchAddTransactions: async (dataList) => {
+        const transactions: Transaction[] = dataList.map((data) => ({
+            ...data,
+            id: generateId(),
+        }));
+        await storage.batchAddTransactions(transactions);
+
+        const state = get();
+        const currentKey = state.currentMonthKey;
+        if (transactions.some(tx => storage.getMonthKey(new Date(tx.datetime)) === currentKey)) {
+            await state.loadMonth(currentKey);
+        }
+        return transactions;
     },
 
     updateTransaction: async (transaction) => {
